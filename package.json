@@ -1,0 +1,14 @@
+{
+    "name": "websocket-photo-transfer",
+    "type": "module",
+    "version": "1.0.0",
+    "description": "WebSocket server and client with photo transfer",
+    "main": "server.js",
+    "scripts": {
+      "start": "node server.js",
+      "client": "node client.js"
+    },
+    "dependencies": {
+      "ws": "^8.14.2"
+    }
+  }

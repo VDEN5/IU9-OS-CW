@@ -1,0 +1,302 @@
+import WebSocket from 'ws';
+import readline from 'readline';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+class WebSocketClient {
+    constructor(url = 'ws://localhost:8080') {
+        this.url = url;
+        this.ws = null;
+        this.isConnected = false;
+        this.photosDir = path.join(__dirname, 'client_photos');
+        
+        if (!fs.existsSync(this.photosDir)) {
+            fs.mkdirSync(this.photosDir, { recursive: true });
+            console.log(`📁 Папка для фото: ${this.photosDir}`);
+        }
+        
+        this.setupReadline();
+        this.connect();
+    }
+
+    connect() {
+        console.log(`🔗 Подключаемся к ${this.url}...`);
+        
+        this.ws = new WebSocket(this.url);
+
+        this.ws.on('open', () => {
+            this.isConnected = true;
+            console.log('✅ Подключение установлено!');
+            this.checkPhotos();
+        });
+
+        this.ws.on('message', (data) => {
+            try {
+                const message = JSON.parse(data.toString());
+                
+                if (message.type === 'get_photo') {
+                    console.log('📸 Сервер запросил фото');
+                    this.sendLatestPhoto();
+                }
+                else if (message.type === 'message') {
+                    console.log(`📨 Сервер: ${message.text}`);
+                }
+            } catch (error) {
+                // Игнорируем бинарные данные (фото)
+            }
+        });
+
+        this.ws.on('close', () => {
+            this.isConnected = false;
+            console.log('❌ Соединение закрыто');
+        });
+
+        this.ws.on('error', (error) => {
+            console.log('💥 Ошибка:', error.message);
+        });
+    }
+
+    checkPhotos() {
+        try {
+            const files = fs.readdirSync(this.photosDir);
+            const imageFiles = files.filter(file => 
+                /\.(jpg|jpeg|png|gif|bmp)$/i.test(file)
+            );
+
+            if (imageFiles.length > 0) {
+                console.log(`📸 Найдено фото: ${imageFiles.length} файлов`);
+                this.listPhotos();
+            } else {
+                console.log('❌ В папке нет фото');
+            }
+        } catch (error) {
+            console.log('❌ Ошибка чтения папки');
+        }
+    }
+
+    listPhotos() {
+        try {
+            const files = fs.readdirSync(this.photosDir);
+            const imageFiles = files
+                .filter(file => /\.(jpg|jpeg|png|gif|bmp)$/i.test(file))
+                .map(file => {
+                    const filePath = path.join(this.photosDir, file);
+                    const stats = fs.statSync(filePath);
+                    return {
+                        name: file,
+                        size: stats.size,
+                        mtime: stats.mtime
+                    };
+                })
+                .sort((a, b) => new Date(b.mtime) - new Date(a.mtime));
+
+            console.log('');
+            imageFiles.forEach((file, index) => {
+                const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+                console.log(`   ${index + 1}. ${file.name} (${sizeMB} MB)`);
+            });
+            console.log('');
+        } catch (error) {
+            console.log('❌ Ошибка получения списка');
+        }
+    }
+
+    sendMessage(text) {
+        if (!this.isConnected) {
+            console.log('❌ Нет подключения');
+            return;
+        }
+
+        this.ws.send(JSON.stringify({
+            type: 'message',
+            text: text
+        }));
+        console.log(`💬 Отправлено: ${text}`);
+    }
+
+    sendLatestPhoto() {
+        this.sendPhotoByIndex(0);
+    }
+
+    sendPhotoByIndex(index) {
+        if (!this.isConnected) {
+            console.log('❌ Нет подключения');
+            return;
+        }
+
+        try {
+            const files = fs.readdirSync(this.photosDir);
+            const imageFiles = files
+                .filter(file => /\.(jpg|jpeg|png|gif|bmp)$/i.test(file))
+                .map(file => {
+                    const filePath = path.join(this.photosDir, file);
+                    return {
+                        name: file,
+                        path: filePath
+                    };
+                })
+                .sort((a, b) => {
+                    const statA = fs.statSync(a.path);
+                    const statB = fs.statSync(b.path);
+                    return new Date(statB.mtime) - new Date(statA.mtime);
+                });
+
+            if (imageFiles.length === 0) {
+                console.log('❌ Нет фото для отправки');
+                return;
+            }
+
+            if (index < 0 || index >= imageFiles.length) {
+                console.log(`❌ Неверный номер. Доступно: 1-${imageFiles.length}`);
+                return;
+            }
+
+            const photo = imageFiles[index];
+            const photoData = fs.readFileSync(photo.path);
+            
+            console.log(`📸 Отправляю: ${photo.name}`);
+            this.ws.send(photoData);
+            console.log(`✅ Фото отправлено (${photoData.length} байт)\n`);
+            
+        } catch (error) {
+            console.log('❌ Ошибка отправки фото:', error);
+        }
+    }
+
+    sendAllPhotos() {
+        if (!this.isConnected) {
+            console.log('❌ Нет подключения');
+            return;
+        }
+
+        try {
+            const files = fs.readdirSync(this.photosDir);
+            const imageFiles = files
+                .filter(file => /\.(jpg|jpeg|png|gif|bmp)$/i.test(file))
+                .map(file => {
+                    const filePath = path.join(this.photosDir, file);
+                    return {
+                        name: file,
+                        path: filePath
+                    };
+                })
+                .sort((a, b) => {
+                    const statA = fs.statSync(a.path);
+                    const statB = fs.statSync(b.path);
+                    return new Date(statB.mtime) - new Date(statA.mtime);
+                });
+
+            if (imageFiles.length === 0) {
+                console.log('❌ Нет фото для отправки');
+                return;
+            }
+
+            console.log(`📸 Отправляю ${imageFiles.length} фото...`);
+            
+            imageFiles.forEach((photo, index) => {
+                try {
+                    const photoData = fs.readFileSync(photo.path);
+                    this.ws.send(photoData);
+                    console.log(`[${index + 1}/${imageFiles.length}] ${photo.name}`);
+                } catch (error) {
+                    console.log(`❌ Ошибка: ${photo.name}`);
+                }
+            });
+            
+            console.log('✅ Все фото отправлены\n');
+            
+        } catch (error) {
+            console.log('❌ Ошибка:', error);
+        }
+    }
+
+    setupReadline() {
+        const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout,
+            prompt: '> '
+        });
+
+        rl.on('line', (input) => {
+            this.handleCommand(input.trim());
+            rl.prompt();
+        });
+
+        rl.on('close', () => {
+            console.log('\nВыход...');
+            if (this.ws) {
+                this.ws.close();
+            }
+            process.exit(0);
+        });
+
+        rl.prompt();
+    }
+
+    handleCommand(input) {
+        if (!input) return;
+
+        const [command, ...args] = input.split(' ');
+        const text = args.join(' ');
+
+        switch (command) {
+            case 'msg':
+                if (text) {
+                    this.sendMessage(text);
+                }
+                break;
+                
+            case 'photo':
+                if (args.length > 0) {
+                    const index = parseInt(args[0]) - 1;
+                    if (!isNaN(index)) {
+                        this.sendPhotoByIndex(index);
+                    }
+                } else {
+                    this.sendLatestPhoto();
+                }
+                break;
+                
+            case 'photoall':
+                this.sendAllPhotos();
+                break;
+                
+            case 'list':
+                this.listPhotos();
+                break;
+                
+            case 'help':
+                console.log(`
+Команды:
+  msg <текст>    - отправить сообщение
+  photo          - отправить последнее фото
+  photo <номер>  - отправить фото по номеру
+  photoall       - отправить все фото
+  list           - список фото
+  help           - справка
+  exit           - выход
+                `);
+                break;
+                
+            case 'exit':
+                if (this.ws) {
+                    this.ws.close();
+                }
+                process.exit(0);
+                break;
+                
+            default:
+                this.sendMessage(input);
+        }
+    }
+}
+
+const args = process.argv.slice(2);
+const serverUrl = args.length > 0 ? args[0] : 'ws://localhost:8080';
+
+console.log('🚀 Запуск клиента...');
+new WebSocketClient(serverUrl);
