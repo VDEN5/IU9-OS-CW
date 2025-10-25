@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Система мониторинга лесных пожаров</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Яндекс Карты API -->
+    <script src="https://api-maps.yandex.ru/2.1/?apikey=0000&lang=ru_RU" type="text/javascript"></script>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🔥 Система мониторинга лесных пожаров</h1>
+            <div class="status-bar">
+                <div class="status-item">
+                    <span class="label">Статус:</span>
+                    <span id="connectionStatus" class="status-offline">Отключено</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Камеры:</span>
+                    <span id="clientCount">0/5</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Активные:</span>
+                    <span id="activeCount">0</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Яндекс Карта -->
+        <section class="map-section">
+            <h2>🗺️ Карта расположения камер пожарообнаружения</h2>
+            <div id="map" class="map-container"></div>
+        </section>
+
+        <main class="main-content">
+            <section class="cameras-section">
+                <h2>📷 Камеры наблюдения</h2>
+                <div id="camerasList" class="cameras-list">
+                    <div class="empty-state">Загрузка камер...</div>
+                </div>
+            </section>
+
+            <section class="photos-section">
+                <h2>🖼️ Последние фото с камер (автоматические)</h2>
+                <div class="photos-table-container">
+                    <table class="photos-table">
+                        <thead>
+                            <tr>
+                                <th>Камера</th>
+                                <th>Регион</th>
+                                <th>Время</th>
+                                <th>Фото</th>
+                                <th>Статус</th>
+                            </tr>
+                        </thead>
+                        <tbody id="photosTable">
+                            <tr>
+                                <td colspan="5" class="empty-state">Автоматические фото появятся здесь</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Модальное окно для фото по запросу -->
+    <div id="photoModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Фото с камеры</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <img id="modalImage" src="" alt="Фото с камеры">
+                <div class="photo-info-modal">
+                    <div><strong>Камера:</strong> <span id="modalCameraName">-</span></div>
+                    <div><strong>Время:</strong> <span id="modalTimestamp">-</span></div>
+                    <div><strong>Тип:</strong> <span id="modalType">-</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

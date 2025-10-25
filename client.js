@@ -7,11 +7,14 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-class WebSocketClient {
-    constructor(url = 'ws://localhost:8080') {
+class CameraClient {
+    constructor(url = 'ws://localhost:8080', cameraId = 'camera_1') {
         this.url = url;
+        this.cameraId = cameraId;
+        this.cameraName = '';
         this.ws = null;
         this.isConnected = false;
+        this.isIdentified = false;
         this.photosDir = path.join(__dirname, 'client_photos');
         
         if (!fs.existsSync(this.photosDir)) {
@@ -24,23 +27,35 @@ class WebSocketClient {
     }
 
     connect() {
-        console.log(`🔗 Подключаемся к ${this.url}...`);
+        console.log(`🔗 Подключаемся к ${this.url} как ${this.cameraId}...`);
         
         this.ws = new WebSocket(this.url);
 
         this.ws.on('open', () => {
             this.isConnected = true;
             console.log('✅ Подключение установлено!');
-            this.checkPhotos();
+            
+            // Идентифицируемся как камера
+            this.ws.send(JSON.stringify({
+                type: 'camera_identify',
+                cameraId: this.cameraId
+            }));
+            console.log(`📷 Идентифицируемся как ${this.cameraId}...`);
         });
 
         this.ws.on('message', (data) => {
             try {
                 const message = JSON.parse(data.toString());
                 
-                if (message.type === 'get_photo') {
+                if (message.type === 'camera_identified') {
+                    this.isIdentified = true;
+                    this.cameraName = message.name;
+                    console.log(`✅ Идентификация успешна: ${this.cameraName}`);
+                    this.checkPhotos();
+                }
+                else if (message.type === 'get_photo') {
                     console.log('📸 Сервер запросил фото');
-                    this.sendLatestPhoto();
+                    this.sendLatestPhoto(false);
                 }
                 else if (message.type === 'message') {
                     console.log(`📨 Сервер: ${message.text}`);
@@ -52,6 +67,7 @@ class WebSocketClient {
 
         this.ws.on('close', () => {
             this.isConnected = false;
+            this.isIdentified = false;
             console.log('❌ Соединение закрыто');
         });
 
@@ -106,8 +122,8 @@ class WebSocketClient {
     }
 
     sendMessage(text) {
-        if (!this.isConnected) {
-            console.log('❌ Нет подключения');
+        if (!this.isConnected || !this.isIdentified) {
+            console.log('❌ Нет подключения или не идентифицированы');
             return;
         }
 
@@ -118,16 +134,16 @@ class WebSocketClient {
         console.log(`💬 Отправлено: ${text}`);
     }
 
-    sendLatestPhoto() {
-        this.sendPhotoByIndex(0);
+    sendLatestPhoto(withFire) {
+        this.sendPhotoByIndex(0, withFire);
     }
 
-    sendPhotoByIndex(index) {
-        if (!this.isConnected) {
-            console.log('❌ Нет подключения');
+    sendPhotoByIndex(index, withFire) {
+        if (!this.isConnected || !this.isIdentified) {
+            console.log('❌ Нет подключения или не идентифицированы');
             return;
         }
-
+    
         try {
             const files = fs.readdirSync(this.photosDir);
             const imageFiles = files
@@ -144,23 +160,36 @@ class WebSocketClient {
                     const statB = fs.statSync(b.path);
                     return new Date(statB.mtime) - new Date(statA.mtime);
                 });
-
+    
             if (imageFiles.length === 0) {
                 console.log('❌ Нет фото для отправки');
                 return;
             }
-
+    
             if (index < 0 || index >= imageFiles.length) {
                 console.log(`❌ Неверный номер. Доступно: 1-${imageFiles.length}`);
                 return;
             }
-
+    
             const photo = imageFiles[index];
             const photoData = fs.readFileSync(photo.path);
             
-            console.log(`📸 Отправляю: ${photo.name}`);
-            this.ws.send(photoData);
-            console.log(`✅ Фото отправлено (${photoData.length} байт)\n`);
+            // Определяем пожар по имени файла
+            const isFire = withFire || photo.name.toLowerCase().includes('fire');
+            
+            console.log(`📸 Отправляю: ${photo.name} ${isFire ? '🔥 (ПОЖАР)' : ''}`);
+            
+            // Отправляем JSON с метаданными и фото
+            const message = {
+                type: 'photo_upload',
+                filename: photo.name,
+                isFire: isFire,
+                timestamp: new Date().toISOString(),
+                photoData: photoData.toString('base64')
+            };
+            
+            this.ws.send(JSON.stringify(message));
+            console.log(`✅ Фото отправлено (${photoData.length} байт) ${isFire ? '🔥' : ''}\n`);
             
         } catch (error) {
             console.log('❌ Ошибка отправки фото:', error);
@@ -168,8 +197,8 @@ class WebSocketClient {
     }
 
     sendAllPhotos() {
-        if (!this.isConnected) {
-            console.log('❌ Нет подключения');
+        if (!this.isConnected || !this.isIdentified) {
+            console.log('❌ Нет подключения или не идентифицированы');
             return;
         }
 
@@ -254,10 +283,10 @@ class WebSocketClient {
                 if (args.length > 0) {
                     const index = parseInt(args[0]) - 1;
                     if (!isNaN(index)) {
-                        this.sendPhotoByIndex(index);
+                        this.sendPhotoByIndex(index, true);
                     }
                 } else {
-                    this.sendLatestPhoto();
+                    this.sendLatestPhoto(true);
                 }
                 break;
                 
@@ -273,9 +302,9 @@ class WebSocketClient {
                 console.log(`
 Команды:
   msg <текст>    - отправить сообщение
-  photo          - отправить последнее фото
-  photo <номер>  - отправить фото по номеру
-  photoall       - отправить все фото
+  photo          - отправить последнее фото (пожар)
+  photo <номер>  - отправить фото по номеру (пожар)
+  photoall       - отправить все фото (пожары)
   list           - список фото
   help           - справка
   exit           - выход
@@ -295,8 +324,11 @@ class WebSocketClient {
     }
 }
 
+// Запуск клиента с указанием ID камеры
 const args = process.argv.slice(2);
 const serverUrl = args.length > 0 ? args[0] : 'ws://localhost:8080';
+const cameraId = args.length > 1 ? args[1] : 'camera_1';
 
-console.log('🚀 Запуск клиента...');
-new WebSocketClient(serverUrl);
+console.log('🚀 Запуск клиента-камеры...');
+console.log(`📷 ID камеры: ${cameraId}`);
+new CameraClient(serverUrl, cameraId);

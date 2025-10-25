@@ -1,0 +1,643 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #0c2461 0%, #1e3799 100%);
+    color: #333;
+    line-height: 1.6;
+    min-height: 100vh;
+}
+
+.container {
+    max-width: 1800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.header {
+    background: rgba(255, 255, 255, 0.95);
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.header h1 {
+    color: #e74c3c;
+    margin-bottom: 15px;
+    font-size: 28px;
+    text-align: center;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+}
+
+.status-bar {
+    display: flex;
+    gap: 30px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.status-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f8f9fa;
+    padding: 8px 16px;
+    border-radius: 25px;
+    border: 2px solid #e9ecef;
+}
+
+.label {
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.status-online {
+    color: #27ae60;
+    font-weight: 600;
+}
+
+.status-offline {
+    color: #e74c3c;
+    font-weight: 600;
+}
+
+/* Стили для карты */
+.map-section {
+    background: rgba(255, 255, 255, 0.95);
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.map-section h2 {
+    color: #2c3e50;
+    margin-bottom: 15px;
+    font-size: 20px;
+    border-bottom: 3px solid #e74c3c;
+    padding-bottom: 8px;
+}
+
+.map-container {
+    width: 100%;
+    height: 500px;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+
+.main-content {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 20px;
+}
+
+@media (max-width: 1200px) {
+    .main-content {
+        grid-template-columns: 1fr;
+    }
+}
+
+.cameras-section, .photos-section {
+    background: rgba(255, 255, 255, 0.95);
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.cameras-section h2, .photos-section h2 {
+    color: #2c3e50;
+    margin-bottom: 15px;
+    font-size: 20px;
+    border-bottom: 3px solid #3498db;
+    padding-bottom: 8px;
+}
+
+.cameras-list {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.client-card {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border: 2px solid #dee2e6;
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 12px;
+    transition: all 0.3s ease;
+}
+
+.client-card:hover {
+    border-color: #3498db;
+    box-shadow: 0 6px 20px rgba(52, 152, 219, 0.2);
+    transform: translateY(-2px);
+}
+
+.client-card.offline {
+    opacity: 0.7;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+}
+
+.client-card.fire-detected {
+    border-color: #e74c3c;
+    background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+    animation: fireAlert 2s ease-in-out infinite;
+}
+
+@keyframes fireAlert {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7);
+    }
+    50% {
+        box-shadow: 0 0 0 10px rgba(231, 76, 60, 0);
+    }
+}
+
+.client-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.client-id {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    color: #7f8c8d;
+    background: #ecf0f1;
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+
+.client-info {
+    font-size: 13px;
+    color: #5a6c7d;
+    margin-bottom: 12px;
+}
+
+.client-info div {
+    margin-bottom: 3px;
+}
+
+.request-btn {
+    background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.3s ease;
+    width: 100%;
+    font-weight: 600;
+}
+
+.request-btn:hover {
+    background: linear-gradient(135deg, #2980b9 0%, #2471a3 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+}
+
+.request-btn:disabled {
+    background: #bdc3c7;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.connection-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.connection-dot.connected {
+    background: #27ae60;
+    box-shadow: 0 0 10px rgba(39, 174, 96, 0.5);
+}
+
+.connection-dot.disconnected {
+    background: #e74c3c;
+}
+
+/* Стили для таблицы фото */
+.photos-table-container {
+    max-height: 600px;
+    overflow-y: auto;
+    border-radius: 10px;
+    border: 2px solid #e9ecef;
+}
+
+.photos-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+}
+
+.photos-table th {
+    background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
+    color: white;
+    padding: 15px;
+    text-align: left;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.photos-table td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #e9ecef;
+    vertical-align: middle;
+}
+
+.photos-table tr:hover {
+    background: #f8f9fa;
+}
+
+.photos-table tr.fire-alert {
+    background: #ffebee;
+    animation: tableAlert 3s ease-in-out;
+}
+
+@keyframes tableAlert {
+    0%, 100% {
+        background: #ffebee;
+    }
+    50% {
+        background: #ffcdd2;
+    }
+}
+
+.photo-thumbnail {
+    width: 80px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+    border: 2px solid #e9ecef;
+}
+
+.photo-thumbnail:hover {
+    transform: scale(1.8);
+    z-index: 100;
+    position: relative;
+    border-color: #3498db;
+}
+
+.status-indicator {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.status-normal {
+    background: #d5f4e6;
+    color: #27ae60;
+}
+
+.status-fire {
+    background: #ffcccc;
+    color: #e74c3c;
+    animation: statusPulse 2s infinite;
+}
+
+@keyframes statusPulse {
+    0%, 100% {
+        background: #ffcccc;
+    }
+    50% {
+        background: #ff9999;
+    }
+}
+
+.empty-state {
+    text-align: center;
+    color: #7f8c8d;
+    padding: 40px 20px;
+    font-style: italic;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+/* Анимации для активных камер */
+.camera-active {
+    animation: cameraPulse 2s ease-in-out;
+}
+
+@keyframes cameraPulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 15px rgba(231, 76, 60, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(231, 76, 60, 0);
+    }
+}
+
+.connection-dot.pulsing {
+    animation: dotPulse 1.5s infinite;
+}
+
+@keyframes dotPulse {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7);
+    }
+    50% {
+        transform: scale(1.3);
+        box-shadow: 0 0 0 8px rgba(231, 76, 60, 0);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(231, 76, 60, 0);
+    }
+}
+
+/* Стили для маркеров на карте */
+.camera-marker {
+    background: #3498db;
+    border: 3px solid white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
+.camera-marker.online {
+    background: #27ae60;
+}
+
+.camera-marker.offline {
+    background: #e74c3c;
+}
+
+.camera-marker.fire-detected {
+    background: #e74c3c;
+    animation: markerFire 2s infinite;
+}
+
+@keyframes markerFire {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7);
+    }
+    50% {
+        transform: scale(1.2);
+        box-shadow: 0 0 0 10px rgba(231, 76, 60, 0);
+    }
+}
+
+/* Scrollbar styling */
+.cameras-list::-webkit-scrollbar,
+.photos-table-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.cameras-list::-webkit-scrollbar-track,
+.photos-table-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.cameras-list::-webkit-scrollbar-thumb,
+.photos-table-container::-webkit-scrollbar-thumb {
+    background: #bdc3c7;
+    border-radius: 4px;
+}
+
+.cameras-list::-webkit-scrollbar-thumb:hover,
+.photos-table-container::-webkit-scrollbar-thumb:hover {
+    background: #95a5a6;
+}
+
+.region-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #e3f2fd;
+    color: #1976d2;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 5px;
+}
+
+/* Стили для fire иконки */
+.fire-icon {
+    width: 24px;
+    height: 24px;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.fire-icon.small {
+    width: 16px;
+    height: 16px;
+}
+
+.fire-icon.large {
+    width: 32px;
+    height: 32px;
+}
+
+.fire-icon.animated {
+    animation: fireBlaze 1s ease-in-out infinite;
+}
+
+@keyframes fireBlaze {
+    0%, 100% {
+        filter: drop-shadow(0 0 5px #ff6b35);
+        transform: scale(1);
+    }
+    50% {
+        filter: drop-shadow(0 0 15px #ff4500);
+        transform: scale(1.1);
+    }
+}
+
+/* Стили для кастомных маркеров с fire.svg */
+.fire-marker {
+    background-image: url('fire.svg');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    width: 40px;
+    height: 40px;
+    border: none;
+}
+
+.fire-marker.animated {
+    animation: fireMarkerPulse 2s infinite;
+}
+
+@keyframes fireMarkerPulse {
+    0%, 100% {
+        transform: scale(1) rotate(0deg);
+        filter: drop-shadow(0 0 10px #ff6b35);
+    }
+    25% {
+        transform: scale(1.2) rotate(-5deg);
+    }
+    50% {
+        transform: scale(1.3) rotate(5deg);
+        filter: drop-shadow(0 0 20px #ff4500);
+    }
+    75% {
+        transform: scale(1.2) rotate(-3deg);
+    }
+}
+
+/* Стили для модального окна */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.8);
+    backdrop-filter: blur(5px);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 5% auto;
+    padding: 0;
+    border-radius: 15px;
+    width: 90%;
+    max-width: 800px;
+    box-shadow: 0 10px 50px rgba(0,0,0,0.3);
+    animation: modalAppear 0.3s ease-out;
+}
+
+@keyframes modalAppear {
+    from {
+        opacity: 0;
+        transform: scale(0.8) translateY(-50px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
+    color: white;
+    border-radius: 15px 15px 0 0;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 20px;
+}
+
+.close {
+    color: white;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: color 0.3s ease;
+}
+
+.close:hover {
+    color: #ff6b6b;
+}
+
+.modal-body {
+    padding: 30px;
+    text-align: center;
+}
+
+#modalImage {
+    max-width: 100%;
+    max-height: 500px;
+    border-radius: 10px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+    margin-bottom: 20px;
+}
+
+.photo-info-modal {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 10px;
+    text-align: left;
+    margin-top: 20px;
+}
+
+.photo-info-modal div {
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.photo-info-modal strong {
+    color: #2c3e50;
+}
+
+/* Адаптивность для модального окна */
+@media (max-width: 768px) {
+    .modal-content {
+        width: 95%;
+        margin: 10% auto;
+    }
+    
+    .modal-body {
+        padding: 20px;
+    }
+    
+    #modalImage {
+        max-height: 300px;
+    }
+}
+
+/* Стили для кастомных маркеров Яндекс Карт */
+.yandex-marker-fire {
+    background-image: url('fire.svg');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    width: 40px;
+    height: 40px;
+}
+
+.yandex-marker-normal {
+    background-color: #27ae60;
+    border: 3px solid white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
+.yandex-marker-offline {
+    background-color: #95a5a6;
+    border: 3px solid white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
