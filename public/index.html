@@ -35,29 +35,34 @@
         </section>
 
         <main class="main-content">
+            <!-- Левая часть - плитки камер -->
             <section class="cameras-section">
                 <h2>📷 Камеры наблюдения</h2>
-                <div id="camerasList" class="cameras-list">
+                <div id="camerasList" class="cameras-grid">
                     <div class="empty-state">Загрузка камер...</div>
                 </div>
             </section>
 
-            <section class="photos-section">
-                <h2>🖼️ Последние фото с камер (автоматические)</h2>
-                <div class="photos-table-container">
-                    <table class="photos-table">
+            <!-- Правая часть - лог событий -->
+            <section class="events-section">
+                <div class="events-header">
+                    <h2>📋 Сводка событий</h2>
+                    <button id="showHistoryBtn" class="history-btn">📜 Вся история</button>
+                </div>
+                <div class="events-table-container">
+                    <table class="events-table">
                         <thead>
                             <tr>
-                                <th>Камера</th>
-                                <th>Регион</th>
                                 <th>Время</th>
-                                <th>Фото</th>
-                                <th>Статус</th>
+                                <th>Камера</th>
+                                <th>Событие</th>
+                                <th>Детали</th>
+                                <th>Действия</th>
                             </tr>
                         </thead>
-                        <tbody id="photosTable">
+                        <tbody id="eventsTable">
                             <tr>
-                                <td colspan="5" class="empty-state">Автоматические фото появятся здесь</td>
+                                <td colspan="5" class="empty-state">События появятся здесь</td>
                             </tr>
                         </tbody>
                     </table>
@@ -66,7 +71,7 @@
         </main>
     </div>
 
-    <!-- Модальное окно для фото по запросу -->
+    <!-- Модальное окно для фото -->
     <div id="photoModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -79,6 +84,43 @@
                     <div><strong>Камера:</strong> <span id="modalCameraName">-</span></div>
                     <div><strong>Время:</strong> <span id="modalTimestamp">-</span></div>
                     <div><strong>Тип:</strong> <span id="modalType">-</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для истории -->
+    <div id="historyModal" class="modal">
+        <div class="modal-content large-modal">
+            <div class="modal-header">
+                <h3>📜 Вся история событий</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="history-controls">
+                    <button id="filterAll" class="filter-btn active">Все</button>
+                    <button id="filterFires" class="filter-btn">Только пожары</button>
+                    <button id="filterConnections" class="filter-btn">Подключения</button>
+                    <button id="clearHistory" class="clear-btn">🗑️ Очистить историю</button>
+                </div>
+                <div class="history-table-container">
+                    <!-- В секции events-section обновим thead -->
+<table class="events-table">
+    <thead>
+        <tr>
+            <th>Время</th>
+            <th>Камера</th>
+            <th>Событие</th>
+            <th>Детали</th>
+            <th>Фото</th> <!-- Изменили с "Действия" на "Фото" -->
+        </tr>
+    </thead>
+    <tbody id="eventsTable">
+        <tr>
+            <td colspan="5" class="empty-state">События появятся здесь</td>
+        </tr>
+    </tbody>
+</table>
                 </div>
             </div>
         </div>

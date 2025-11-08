@@ -3,17 +3,47 @@ class ServerMonitor {
         this.monitorWs = null;
         this.isConnected = false;
         this.cameras = new Map();
-        this.lastPhotos = new Map(); // Только для фото с пожарами
         this.activeAnimations = new Set();
         this.isMapReady = false;
         this.pendingCamerasUpdate = false;
         this.mapObjects = {};
-        this.fireTimeouts = new Map(); // Таймауты для автоматического скрытия fire-меток
+        this.fireTimeouts = new Map();
+        
+        // Хранилище истории событий
+        this.maxHistorySize = 1000;
+        this.loadHistoryFromStorage();
         
         this.initializeElements();
         this.initializeMap();
-        this.setupModal();
+        this.setupModals();
         this.connect();
+    }
+
+    // Загрузка истории из LocalStorage
+    loadHistoryFromStorage() {
+        try {
+            const savedHistory = localStorage.getItem('fireMonitoringHistory');
+            if (savedHistory) {
+                this.eventsHistory = JSON.parse(savedHistory);
+                console.log(`📚 Загружена история из хранилища: ${this.eventsHistory.length} событий`);
+            } else {
+                this.eventsHistory = [];
+                console.log('📚 История не найдена в хранилище, создаем новую');
+            }
+        } catch (error) {
+            console.error('❌ Ошибка загрузки истории:', error);
+            this.eventsHistory = [];
+        }
+    }
+
+    // Сохранение истории в LocalStorage
+    saveHistoryToStorage() {
+        try {
+            localStorage.setItem('fireMonitoringHistory', JSON.stringify(this.eventsHistory));
+            console.log(`💾 История сохранена: ${this.eventsHistory.length} событий`);
+        } catch (error) {
+            console.error('❌ Ошибка сохранения истории:', error);
+        }
     }
 
     initializeElements() {
@@ -21,22 +51,39 @@ class ServerMonitor {
         this.clientCount = document.getElementById('clientCount');
         this.activeCount = document.getElementById('activeCount');
         this.camerasList = document.getElementById('camerasList');
-        this.photosTable = document.getElementById('photosTable');
+        this.eventsTable = document.getElementById('eventsTable');
         
-        // Элементы модального окна
+        // Элементы модальных окон
         this.modal = document.getElementById('photoModal');
         this.modalImage = document.getElementById('modalImage');
         this.modalTitle = document.getElementById('modalTitle');
         this.modalCameraName = document.getElementById('modalCameraName');
         this.modalTimestamp = document.getElementById('modalTimestamp');
         this.modalType = document.getElementById('modalType');
+        
+        this.historyModal = document.getElementById('historyModal');
+        this.historyTable = document.getElementById('historyTable');
+        
+        // Кнопки
+        this.showHistoryBtn = document.getElementById('showHistoryBtn');
+        this.clearHistoryBtn = document.getElementById('clearHistory');
+        this.filterAll = document.getElementById('filterAll');
+        this.filterFires = document.getElementById('filterFires');
+        this.filterConnections = document.getElementById('filterConnections');
+        
+        // Показываем статистику истории при загрузке
+        this.updateHistoryStats();
     }
 
-    setupModal() {
-        const closeBtn = document.querySelector('.close');
-        closeBtn.onclick = () => {
-            this.closeModal();
-        };
+    setupModals() {
+        // Основное модальное окно для фото
+        const closeBtns = document.querySelectorAll('.close');
+        closeBtns.forEach(btn => {
+            btn.onclick = () => {
+                this.closeModal();
+                this.closeHistoryModal();
+            };
+        });
 
         this.modal.onclick = (event) => {
             if (event.target === this.modal) {
@@ -44,27 +91,214 @@ class ServerMonitor {
             }
         };
 
+        this.historyModal.onclick = (event) => {
+            if (event.target === this.historyModal) {
+                this.closeHistoryModal();
+            }
+        };
+
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape') {
                 this.closeModal();
+                this.closeHistoryModal();
             }
         });
+
+        // Кнопка показа истории
+        this.showHistoryBtn.onclick = () => {
+            this.showHistoryModal();
+        };
+
+        // Кнопка очистки истории
+        this.clearHistoryBtn.onclick = () => {
+            this.clearHistory();
+        };
+
+        // Фильтры истории
+        this.filterAll.onclick = () => this.setHistoryFilter('all');
+        this.filterFires.onclick = () => this.setHistoryFilter('fires');
+        this.filterConnections.onclick = () => this.setHistoryFilter('connections');
     }
 
-    showModal(photoData, cameraName, timestamp, type) {
-        this.modalImage.src = `data:image/jpeg;base64,${photoData}`;
-        this.modalTitle.textContent = `Фото с ${cameraName}`;
-        this.modalCameraName.textContent = cameraName;
-        this.modalTimestamp.textContent = new Date(timestamp).toLocaleString();
-        this.modalType.textContent = type === 'requested' ? 'По запросу' : 'Автоматически';
-        this.modal.style.display = 'block';
+    // Обновление статистики истории
+    updateHistoryStats() {
+        const totalEvents = this.eventsHistory.length;
+        const fireEvents = this.eventsHistory.filter(e => e.type === 'fire').length;
+        const todayEvents = this.eventsHistory.filter(e => {
+            const eventDate = new Date(e.timestamp);
+            const today = new Date();
+            return eventDate.toDateString() === today.toDateString();
+        }).length;
+
+        console.log(`📊 Статистика истории: Всего ${totalEvents}, Пожаров: ${fireEvents}, Сегодня: ${todayEvents}`);
+    }
+
+    // Добавление события в историю
+    addEventToHistory(event) {
+        event.id = Date.now() + Math.random(); // Уникальный ID
+        this.eventsHistory.unshift(event); // Добавляем в начало
+        
+        // Ограничиваем размер истории
+        if (this.eventsHistory.length > this.maxHistorySize) {
+            this.eventsHistory = this.eventsHistory.slice(0, this.maxHistorySize);
+        }
+        
+        // Сохраняем в хранилище
+        this.saveHistoryToStorage();
+        
+        // Обновляем статистику
+        this.updateHistoryStats();
+        
+        // Обновляем сводку (последние 10 событий)
+        this.updateEventsSummary();
+    }
+
+    // Обновление сводки событий (последние 10)
+    updateEventsSummary() {
+        const recentEvents = this.eventsHistory.slice(0, 10);
+        
+        if (recentEvents.length === 0) {
+            this.eventsTable.innerHTML = '<tr><td colspan="5" class="empty-state">События появятся здесь</td></tr>';
+            return;
+        }
+
+        this.eventsTable.innerHTML = recentEvents.map(event => {
+            const eventTypeClass = this.getEventTypeClass(event.type);
+            const eventTypeText = this.getEventTypeText(event.type);
+            
+            return `
+            <tr>
+                <td>${new Date(event.timestamp).toLocaleTimeString()}</td>
+                <td><strong>${event.cameraName || 'Система'}</strong></td>
+                <td><span class="event-type ${eventTypeClass}">${eventTypeText}</span></td>
+                <td>${event.details || ''}</td>
+                <td>
+                    ${event.photoData ? 
+                        `<img src="data:image/jpeg;base64,${event.photoData}" 
+                              class="event-photo"
+                              onclick="monitor.showEventPhoto('${event.id}')"
+                              alt="Фото события"
+                              title="Нажмите для просмотра">` 
+                        : '<span style="color: #95a5a6;">—</span>'
+                    }
+                </td>
+            </tr>
+        `}).join('');
+    }
+
+    // Получение класса для типа события
+    getEventTypeClass(type) {
+        const types = {
+            'fire': 'event-fire',
+            'connection': 'event-connection',
+            'disconnection': 'event-disconnection',
+            'message': 'event-message',
+            'photo_request': 'event-photo'
+        };
+        return types[type] || 'event-message';
+    }
+
+    // Получение текста для типа события
+    getEventTypeText(type) {
+        const texts = {
+            'fire': '🔥 ПОЖАР',
+            'connection': '✅ ПОДКЛЮЧЕНИЕ',
+            'disconnection': '❌ ОТКЛЮЧЕНИЕ',
+            'message': '💬 СООБЩЕНИЕ',
+            'photo_request': '📸 ЗАПРОС ФОТО'
+        };
+        return texts[type] || type;
+    }
+
+    // Показать модальное окно истории
+    showHistoryModal() {
+        this.updateHistoryTable();
+        this.historyModal.style.display = 'block';
         document.body.style.overflow = 'hidden';
     }
 
-    closeModal() {
-        this.modal.style.display = 'none';
+    closeHistoryModal() {
+        this.historyModal.style.display = 'none';
         document.body.style.overflow = 'auto';
-        this.modalImage.src = '';
+    }
+
+    // Обновление таблицы истории
+    updateHistoryTable(filter = 'all') {
+        let filteredEvents = this.eventsHistory;
+        
+        if (filter === 'fires') {
+            filteredEvents = this.eventsHistory.filter(event => event.type === 'fire');
+        } else if (filter === 'connections') {
+            filteredEvents = this.eventsHistory.filter(event => 
+                event.type === 'connection' || event.type === 'disconnection'
+            );
+        }
+
+        if (filteredEvents.length === 0) {
+            this.historyTable.innerHTML = '<tr><td colspan="5" class="empty-state">Нет событий для отображения</td></tr>';
+            return;
+        }
+
+        this.historyTable.innerHTML = filteredEvents.map(event => {
+            const eventTypeClass = this.getEventTypeClass(event.type);
+            const eventTypeText = this.getEventTypeText(event.type);
+            
+            return `
+            <tr>
+                <td>${new Date(event.timestamp).toLocaleString()}</td>
+                <td><strong>${event.cameraName || 'Система'}</strong></td>
+                <td><span class="event-type ${eventTypeClass}">${eventTypeText}</span></td>
+                <td>${event.details || ''}</td>
+                <td>
+                    ${event.photoData ? 
+                        `<img src="data:image/jpeg;base64,${event.photoData}" 
+                              class="history-photo"
+                              onclick="monitor.showEventPhoto('${event.id}')"
+                              alt="Фото события">` 
+                        : '-'
+                    }
+                </td>
+            </tr>
+        `}).join('');
+    }
+
+    // Установка фильтра истории
+    setHistoryFilter(filter) {
+        // Обновляем активные кнопки
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        if (filter === 'all') this.filterAll.classList.add('active');
+        if (filter === 'fires') this.filterFires.classList.add('active');
+        if (filter === 'connections') this.filterConnections.classList.add('active');
+        
+        this.updateHistoryTable(filter);
+    }
+
+    // Показать фото события
+    showEventPhoto(eventId) {
+        const event = this.eventsHistory.find(e => e.id === eventId);
+        if (event && event.photoData) {
+            this.showModal(
+                event.photoData,
+                event.cameraName,
+                event.timestamp,
+                'history'
+            );
+        }
+    }
+
+    // Очистка истории
+    clearHistory() {
+        if (confirm('Вы уверены, что хотите очистить всю историю событий? Это действие нельзя отменить.')) {
+            this.eventsHistory = [];
+            this.saveHistoryToStorage();
+            this.updateEventsSummary();
+            this.updateHistoryTable();
+            this.updateHistoryStats();
+            console.log('🗑️ История полностью очищена');
+        }
     }
 
     initializeMap() {
@@ -111,11 +345,14 @@ class ServerMonitor {
         }
 
         this.cameras.forEach(camera => {
-            const hasRecentPhoto = this.lastPhotos.has(camera.id);
+            const hasRecentFire = this.eventsHistory.some(event => 
+                event.cameraName === camera.name && event.type === 'fire' &&
+                Date.now() - new Date(event.timestamp).getTime() < 300000 // 5 минут
+            );
             
             // Создаем кастомную иконку в зависимости от статуса
             let iconLayout;
-            if (hasRecentPhoto) {
+            if (hasRecentFire) {
                 // Для камер с пожарами - fire.svg с анимацией
                 iconLayout = ymaps.templateLayoutFactory.createClass(
                     `<div class="fire-marker ${this.activeAnimations.has(camera.id) ? 'animated' : ''}" 
@@ -141,7 +378,7 @@ class ServerMonitor {
                                     : ''
                                 }
                             </div>
-                            ${hasRecentPhoto ? 
+                            ${hasRecentFire ? 
                                 '<div style="color: #e74c3c; font-weight: bold; background: #ffebee; padding: 8px; border-radius: 6px; margin-top: 8px;">🔥 ОБНАРУЖЕН ПОЖАР</div>' 
                                 : ''
                             }
@@ -149,7 +386,7 @@ class ServerMonitor {
                     `,
                     iconCaption: camera.name
                 },
-                hasRecentPhoto ? {
+                hasRecentFire ? {
                     iconLayout: iconLayout,
                     iconShape: {
                         type: 'Circle',
@@ -401,6 +638,10 @@ class ServerMonitor {
             case 'photo_received':
                 this.handlePhotoReceived(message);
                 break;
+
+            case 'camera_message':
+                this.handleCameraMessage(message);
+                break;
                 
             default:
                 console.log('Неизвестный тип сообщения:', message);
@@ -411,7 +652,6 @@ class ServerMonitor {
         console.log('📊 Получены начальные данные о камерах:', message.cameras.length);
         
         this.cameras.clear();
-        this.lastPhotos.clear();
         this.fireTimeouts.forEach((timeout, cameraId) => {
             clearTimeout(timeout);
         });
@@ -438,8 +678,15 @@ class ServerMonitor {
         this.cameras.set(message.camera.id, message.camera);
         this.updateCamerasDisplay();
         this.updateMapMarkers();
-        
         this.stopCameraAnimation(message.camera.id);
+
+        // Добавляем в историю
+        this.addEventToHistory({
+            type: 'connection',
+            cameraName: message.camera.name,
+            timestamp: new Date().toISOString(),
+            details: `Камера подключилась с IP: ${message.camera.ip}`
+        });
     }
 
     handleCameraDisconnected(message) {
@@ -448,27 +695,80 @@ class ServerMonitor {
             console.log('❌ Отключение камеры:', camera.name);
             
             camera.status = 'offline';
-            camera.ip = '';
-            camera.connectedAt = null;
-            camera.lastActivity = null;
             this.updateCamerasDisplay();
             this.updateMapMarkers();
-            
             this.stopCameraAnimation(message.cameraId);
+
+            // Добавляем в историю
+            this.addEventToHistory({
+                type: 'disconnection',
+                cameraName: camera.name,
+                timestamp: new Date().toISOString(),
+                details: 'Камера отключилась от системы'
+            });
         }
     }
 
-    handlePhotoRequested(message) {
-        console.log(`📸 Запрошено фото у камеры: ${message.cameraName}`);
+    handleCameraMessage(message) {
+        console.log(`💬 Сообщение от камеры: ${message.text}`);
         
-        // Только легкая анимация карточки, без fire иконки
+        // Добавляем в историю
+        this.addEventToHistory({
+            type: 'message',
+            cameraName: message.cameraId,
+            timestamp: message.timestamp,
+            details: message.text
+        });
+    }
+
+    handlePhotoRequested(message) {
+        // Добавляем запрос фото в историю
+        this.addEventToHistory({
+            type: 'photo_request',
+            cameraName: message.cameraName,
+            timestamp: message.timestamp,
+            details: 'Запрошено фото с камеры'
+        });
+        
         const camera = this.cameras.get(message.cameraId);
         if (camera && camera.status === 'online') {
             this.animateRequestCard(message.cameraId);
-            
             setTimeout(() => {
                 this.stopRequestCardAnimation(message.cameraId);
             }, 1500);
+        }
+    }
+
+    handlePhotoReceived(message) {
+        console.log(`📸 Получено фото от камеры: ${message.cameraName}, пожар: ${message.isFire}`);
+        
+        if (message.isFire) {
+            // Событие пожара
+            this.addEventToHistory({
+                type: 'fire',
+                cameraName: message.cameraName,
+                timestamp: message.timestamp,
+                details: `Обнаружен пожар! Фото: ${message.filename} (${message.size} байт)`,
+                photoData: message.photoData
+            });
+            
+            this.animateCameraMarker(message.cameraId);
+        } else {
+            // Обычное фото по запросу
+            this.addEventToHistory({
+                type: 'photo_request',
+                cameraName: message.cameraName,
+                timestamp: message.timestamp,
+                details: `Фото по запросу: ${message.filename}`,
+                photoData: message.photoData
+            });
+            
+            this.showModal(
+                message.photoData,
+                message.cameraName,
+                message.timestamp,
+                'requested'
+            );
         }
     }
 
@@ -496,88 +796,6 @@ class ServerMonitor {
         }
     }
 
-    handlePhotoReceived(message) {
-        console.log(`📸 Получено фото от камеры: ${message.cameraName}, пожар: ${message.isFire}`);
-        
-        if (message.isFire) {
-            // Фото с пожаром (самостоятельное от клиента) - добавляем в таблицу и анимируем fire
-            this.animateCameraMarker(message.cameraId);
-            
-            this.lastPhotos.set(message.cameraId, {
-                id: `${message.cameraId}-${Date.now()}`,
-                cameraId: message.cameraId,
-                cameraName: message.cameraName,
-                filename: message.filename,
-                timestamp: message.timestamp,
-                size: message.size,
-                data: message.photoData,
-                uploadType: message.uploadType,
-                isFire: message.isFire
-            });
-            
-            this.updatePhotosTable();
-            this.updateCamerasDisplay();
-            
-        } else {
-            // Обычное фото (по запросу с сервера) - показываем в модальном окне, БЕЗ fire анимации
-            this.showModal(
-                message.photoData,
-                message.cameraName,
-                message.timestamp,
-                'requested'
-            );
-            
-            // Только легкая анимация карточки синим цветом
-            this.animateRequestCard(message.cameraId);
-            setTimeout(() => {
-                this.stopRequestCardAnimation(message.cameraId);
-            }, 2000);
-        }
-        
-        const sourceType = message.uploadType === 'requested' ? 'по запросу' : 'автоматически';
-        const fireText = message.isFire ? '🔥 ПОЖАР' : 'обычное';
-        console.log(`📸 Получено ${fireText} фото от ${message.cameraName} (${sourceType}), размер: ${message.size} байт`);
-    }
-
-    updatePhotosTable() {
-        if (this.lastPhotos.size === 0) {
-            this.photosTable.innerHTML = '<tr><td colspan="5" class="empty-state">Фото с пожарами появятся здесь</td></tr>';
-            return;
-        }
-
-        const photosArray = Array.from(this.lastPhotos.values())
-            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-        this.photosTable.innerHTML = photosArray.map(photo => {
-            const camera = this.cameras.get(photo.cameraId);
-            const isNew = Date.now() - new Date(photo.timestamp).getTime() < 30000;
-            
-            return `
-            <tr class="${isNew ? 'fire-alert' : ''}">
-                <td>
-                    <strong>${photo.cameraName}</strong>
-                    <span class="region-badge">${camera?.location || 'Неизвестно'}</span>
-                </td>
-                <td>${camera?.location || 'Неизвестно'}</td>
-                <td>${new Date(photo.timestamp).toLocaleString()}</td>
-                <td>
-                    <img src="data:image/jpeg;base64,${photo.data}" 
-                         alt="Фото от ${photo.cameraName}" 
-                         class="photo-thumbnail"
-                         onclick="monitor.showPhotoModal('${photo.id}')">
-                </td>
-                <td>
-                    <span class="status-indicator status-fire">
-                        <img src="fire.svg" class="fire-icon small" alt="🔥">
-                        ОБНАРУЖЕН ПОЖАР
-                    </span>
-                </td>
-            </tr>
-        `}).join('');
-
-        this.activeCount.textContent = this.lastPhotos.size;
-    }
-
     updateCamerasDisplay() {
         const onlineCameras = Array.from(this.cameras.values()).filter(c => c.status === 'online');
         this.clientCount.textContent = `${onlineCameras.length}/${this.cameras.size}`;
@@ -585,7 +803,10 @@ class ServerMonitor {
         const camerasArray = Array.from(this.cameras.values()).sort((a, b) => a.id.localeCompare(b.id));
 
         this.camerasList.innerHTML = camerasArray.map(camera => {
-            const hasRecentPhoto = this.lastPhotos.has(camera.id);
+            const hasRecentFire = this.eventsHistory.some(event => 
+                event.cameraName === camera.name && event.type === 'fire' &&
+                Date.now() - new Date(event.timestamp).getTime() < 300000 // 5 минут
+            );
             const isAnimating = this.activeAnimations.has(camera.id);
             const borderColor = isAnimating ? '#e74c3c' : 
                               camera.status === 'online' ? '#27ae60' : '#95a5a6';
@@ -608,10 +829,10 @@ class ServerMonitor {
                         <div><strong>Подключена:</strong> ${new Date(camera.connectedAt).toLocaleTimeString()}</div>
                     ` : ''}
                     <div><strong>Координаты:</strong> ${camera.coords[0].toFixed(4)}, ${camera.coords[1].toFixed(4)}</div>
-                    ${hasRecentPhoto ? 
+                    ${hasRecentFire ? 
                         `<div style="color: #e74c3c; font-weight: bold;">
                             <img src="fire.svg" class="fire-icon small" alt="🔥">
-                            Обнаружен пожар (фото сохранено)
+                            Обнаружен пожар
                         </div>` 
                         : ''}
                 </div>
@@ -649,16 +870,21 @@ class ServerMonitor {
         }
     }
 
-    showPhotoModal(photoId) {
-        const photo = Array.from(this.lastPhotos.values()).find(p => p.id === photoId);
-        if (photo) {
-            this.showModal(
-                photo.data,
-                photo.cameraName,
-                photo.timestamp,
-                'automatic'
-            );
-        }
+    showModal(photoData, cameraName, timestamp, type) {
+        this.modalImage.src = `data:image/jpeg;base64,${photoData}`;
+        this.modalTitle.textContent = `Фото с ${cameraName}`;
+        this.modalCameraName.textContent = cameraName;
+        this.modalTimestamp.textContent = new Date(timestamp).toLocaleString();
+        this.modalType.textContent = type === 'requested' ? 'По запросу' : 
+                                   type === 'history' ? 'Из истории' : 'Автоматически';
+        this.modal.style.display = 'block';
+        document.body.style.overflow = 'hidden';
+    }
+
+    closeModal() {
+        this.modal.style.display = 'none';
+        document.body.style.overflow = 'auto';
+        this.modalImage.src = '';
     }
 
     setConnected() {
