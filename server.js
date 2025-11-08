@@ -364,18 +364,8 @@ function broadcastToMonitors(message) {
     monitors.forEach(monitor => {
         if (monitor.readyState === 1) {
             try {
-                // Клонируем сообщение, чтобы избежать циклических ссылок
-                const safeMessage = JSON.parse(JSON.stringify(message, (key, value) => {
-                    // Исключаем циклические ссылки и неподдерживаемые типы
-                    if (key === 'ws' || value instanceof WebSocket) {
-                        return undefined;
-                    }
-                    if (value && typeof value === 'object' && value.constructor.name === 'Socket') {
-                        return undefined;
-                    }
-                    return value;
-                }));
-                
+                // Создаем безопасную копию сообщения без циклических ссылок
+                const safeMessage = createSafeMessage(message);
                 monitor.send(JSON.stringify(safeMessage));
             } catch (error) {
                 console.error('Ошибка отправки в мониторинг:', error);
@@ -389,4 +379,34 @@ function broadcastToMonitors(message) {
     monitorsToRemove.forEach(monitor => {
         monitors.delete(monitor);
     });
+}
+
+// Новая функция для создания безопасного сообщения
+function createSafeMessage(message) {
+    const seen = new WeakSet();
+    
+    return JSON.parse(JSON.stringify(message, (key, value) => {
+        // Исключаем циклические ссылки
+        if (typeof value === 'object' && value !== null) {
+            if (seen.has(value)) {
+                return undefined;
+            }
+            seen.add(value);
+        }
+        
+        // Исключаем неподдерживаемые типы
+        if (value && typeof value === 'object') {
+            // Исключаем WebSocket, Socket и другие сложные объекты
+            const constructorName = value.constructor?.name;
+            if (constructorName && 
+                (constructorName.includes('Socket') || 
+                 constructorName.includes('WebSocket') ||
+                 constructorName.includes('Server') ||
+                 constructorName.includes('Stream'))) {
+                return undefined;
+            }
+        }
+        
+        return value;
+    }));
 }
