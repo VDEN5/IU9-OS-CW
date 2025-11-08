@@ -117,17 +117,18 @@ function handleClientConnection(ws, request) {
                     clientId = requestedCameraId;
                     cameraInfo = {
                         ...FIXED_CAMERAS[requestedCameraId],
-                        ws: ws,
                         id: clientId,
-                        ip: request.socket.remoteAddress,
-                        connectedAt: new Date(),
-                        lastActivity: new Date(),
+                        ip: request.socket.remoteAddress.replace('::ffff:', ''), // Очищаем IPv6 префикс
+                        connectedAt: new Date().toISOString(),
+                        lastActivity: new Date().toISOString(),
                         type: 'camera',
                         status: 'online'
                     };
                     
-                    clients.set(clientId, cameraInfo);
-                    cameraInfo.ip = request.socket.remoteAddress;
+                    clients.set(clientId, {
+                        ...cameraInfo,
+                        ws: ws // храним отдельно, не отправляем в мониторинг
+                    });
                     
                     console.log(`✅ ${cameraInfo.name} подключилась`);
                     console.log(`📊 Подключенных камер: ${Array.from(clients.values()).filter(c => c.type === 'camera').length}\n`);
@@ -138,9 +139,10 @@ function handleClientConnection(ws, request) {
                         name: cameraInfo.name
                     }));
 
+                    // Отправляем безопасную версию без WebSocket
                     broadcastToMonitors({
                         type: 'camera_connected',
-                        camera: cameraInfo
+                        camera: cameraInfo // уже без ws
                     });
 
                     ws.off('message', messageHandler);
@@ -191,7 +193,11 @@ function handleClientConnection(ws, request) {
 function handleCameraMessage(data, cameraInfo) {
     if (!cameraInfo) return;
     
-    cameraInfo.lastActivity = new Date();
+    // Обновляем активность в хранилище
+    const storedCamera = clients.get(cameraInfo.id);
+    if (storedCamera) {
+        storedCamera.lastActivity = new Date().toISOString();
+    }
     
     try {
         const message = JSON.parse(data.toString());
@@ -203,11 +209,10 @@ function handleCameraMessage(data, cameraInfo) {
                 type: 'camera_message',
                 cameraId: cameraInfo.id,
                 text: message.text,
-                timestamp: new Date()
+                timestamp: new Date().toISOString()
             });
         }
         else if (message.type === 'photo_upload') {
-            // Обработка фото с метаданными
             console.log(`📸 Получено фото от ${cameraInfo.name} ${message.isFire ? '🔥 (ПОЖАР)' : ''}`);
             
             const photoData = Buffer.from(message.photoData, 'base64');
@@ -215,7 +220,6 @@ function handleCameraMessage(data, cameraInfo) {
         }
         
     } catch (error) {
-        // Если не JSON, значит это старый формат бинарных данных - считаем пожаром
         console.log(`🔥 Получено фото от ${cameraInfo.name} (пожар - старый формат)`);
         handlePhotoUpload(data, cameraInfo, 'camera_upload', true);
     }
@@ -229,16 +233,30 @@ function handleMonitorConnection(ws, request) {
         const cameraData = FIXED_CAMERAS[cameraId];
         const connectedCamera = clients.get(cameraId);
         
-        return {
-            id: cameraId,
-            name: cameraData.name,
-            location: cameraData.location,
-            coords: cameraData.coords,
-            status: connectedCamera ? 'online' : 'offline',
-            ip: connectedCamera ? connectedCamera.ip : '',
-            connectedAt: connectedCamera ? connectedCamera.connectedAt : null,
-            lastActivity: connectedCamera ? connectedCamera.lastActivity : null
-        };
+        if (connectedCamera) {
+            // Используем безопасные данные
+            return {
+                id: cameraId,
+                name: cameraData.name,
+                location: cameraData.location,
+                coords: cameraData.coords,
+                status: 'online',
+                ip: connectedCamera.ip,
+                connectedAt: connectedCamera.connectedAt,
+                lastActivity: connectedCamera.lastActivity
+            };
+        } else {
+            return {
+                id: cameraId,
+                name: cameraData.name,
+                location: cameraData.location,
+                coords: cameraData.coords,
+                status: 'offline',
+                ip: '',
+                connectedAt: null,
+                lastActivity: null
+            };
+        }
     });
 
     ws.send(JSON.stringify({
@@ -301,18 +319,18 @@ function handlePhotoUpload(photoData, cameraInfo, uploadType = 'camera_upload', 
 }
 
 function requestPhotoFromCamera(cameraId) {
-    const cameraInfo = clients.get(cameraId);
-    if (cameraInfo && cameraInfo.ws.readyState === 1) {
-        console.log(`📸 Запрашиваем фото у ${cameraInfo.name}...`);
-        cameraInfo.ws.send(JSON.stringify({
+    const cameraData = clients.get(cameraId);
+    if (cameraData && cameraData.ws && cameraData.ws.readyState === 1) {
+        console.log(`📸 Запрашиваем фото у ${cameraData.name}...`);
+        cameraData.ws.send(JSON.stringify({
             type: 'get_photo'
         }));
         
         broadcastToMonitors({
             type: 'photo_requested',
             cameraId: cameraId,
-            cameraName: cameraInfo.name,
-            timestamp: new Date()
+            cameraName: cameraData.name,
+            timestamp: new Date().toISOString()
         });
         
         return true;
@@ -322,13 +340,43 @@ function requestPhotoFromCamera(cameraId) {
     }
 }
 
+function getSafeCameraData(cameraId) {
+    const cameraData = clients.get(cameraId);
+    if (!cameraData) return null;
+    
+    // Возвращаем безопасный объект без WebSocket
+    return {
+        id: cameraData.id,
+        name: cameraData.name,
+        location: cameraData.location,
+        coords: cameraData.coords,
+        ip: cameraData.ip,
+        connectedAt: cameraData.connectedAt,
+        lastActivity: cameraData.lastActivity,
+        status: 'online',
+        type: cameraData.type
+    };
+}
+
 function broadcastToMonitors(message) {
     const monitorsToRemove = [];
     
     monitors.forEach(monitor => {
         if (monitor.readyState === 1) {
             try {
-                monitor.send(JSON.stringify(message));
+                // Клонируем сообщение, чтобы избежать циклических ссылок
+                const safeMessage = JSON.parse(JSON.stringify(message, (key, value) => {
+                    // Исключаем циклические ссылки и неподдерживаемые типы
+                    if (key === 'ws' || value instanceof WebSocket) {
+                        return undefined;
+                    }
+                    if (value && typeof value === 'object' && value.constructor.name === 'Socket') {
+                        return undefined;
+                    }
+                    return value;
+                }));
+                
+                monitor.send(JSON.stringify(safeMessage));
             } catch (error) {
                 console.error('Ошибка отправки в мониторинг:', error);
                 monitorsToRemove.push(monitor);
