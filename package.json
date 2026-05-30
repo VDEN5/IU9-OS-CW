@@ -9,6 +9,7 @@
     "dev": "node --watch server.js"
   },
   "dependencies": {
+    "pg": "^8.19.0",
     "ws": "^8.14.2"
   }
 }

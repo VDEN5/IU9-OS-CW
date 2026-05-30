@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 class CameraClient {
-    constructor(url = 'ws://localhost:8080', cameraId = 'camera_1') {
+    constructor(url = 'ws://localhost:8081', cameraId = 'camera_1') {
         this.url = url;
         this.cameraId = cameraId;
         this.cameraName = '';
@@ -449,7 +449,7 @@ class CameraClient {
 
 // Запуск клиента
 const args = process.argv.slice(2);
-const serverUrl = args.length > 0 ? args[0] : 'ws://5.188.30.109:8064';
+const serverUrl = args.length > 0 ? args[0] : 'http://localhost:8081/';
 const cameraId = args.length > 1 ? args[1] : 'camera_1';
 
 console.log('🚀 Запуск клиента-камеры...');

@@ -1,3 +1,4 @@
+// app.js
 class ServerMonitor {
     constructor() {
         this.monitorWs = null;
@@ -8,18 +9,114 @@ class ServerMonitor {
         this.pendingCamerasUpdate = false;
         this.mapObjects = {};
         this.fireTimeouts = new Map();
+        this.currentUser = null;
+        this.authToken = null;
         
-        // Хранилище истории событий
         this.maxHistorySize = 1000;
         this.loadHistoryFromStorage();
         
         this.initializeElements();
+        this.checkAuth();
+        if (!this.currentUser) {
+        alert('Для доступа к системе необходимо авторизоваться');
+        window.location.href = '/login-modal.html';
+        return;
+    }
         this.initializeMap();
         this.setupModals();
+        
         this.connect();
+        this.loadCameraDetails();
     }
 
-    // Загрузка истории из LocalStorage
+    checkAuth() {
+        this.authToken = localStorage.getItem('authToken');
+        const savedUser = localStorage.getItem('currentUser');
+        
+        if (savedUser) {
+            try {
+                this.currentUser = JSON.parse(savedUser);
+                console.log(`👤 Пользователь: ${this.currentUser.name} (${this.currentUser.position})`);
+            } catch (e) {
+                console.error('Ошибка парсинга данных пользователя');
+                this.currentUser = null;
+                this.authToken = null;
+                localStorage.removeItem('currentUser');
+                localStorage.removeItem('authToken');
+            }
+        } else {
+            this.currentUser = null;
+            this.authToken = null;
+        }
+        
+        this.updateAuthUI();
+    }
+
+    updateAuthUI() {
+        const authBlock = document.getElementById('authBlock');
+        if (!authBlock) return;
+        
+        if (this.currentUser) {
+            authBlock.innerHTML = `
+                <div class="user-info">
+                    <span class="user-greeting">👤 ${this.currentUser.name}</span>
+                    <span class="user-position">${this.currentUser.position}</span>
+                    <button onclick="monitor.logout()" class="logout-btn-small" title="Выйти">🚪</button>
+                </div>
+            `;
+        } else {
+            authBlock.innerHTML = `
+                <a href="/login-modal.html" class="login-btn-small">🔐 Войти</a>
+            `;
+        }
+    }
+
+    logout() {
+        if (this.authToken) {
+            fetch('/api/logout', {
+                method: 'POST',
+                headers: { 'x-auth-token': this.authToken }
+            }).finally(() => {
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('currentUser');
+                this.currentUser = null;
+                this.authToken = null;
+                this.updateAuthUI();
+            });
+        } else {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('currentUser');
+            this.currentUser = null;
+            this.updateAuthUI();
+        }
+    }
+
+    initializeElements() {
+        this.connectionStatus = document.getElementById('connectionStatus');
+        this.clientCount = document.getElementById('clientCount');
+        this.activeCount = document.getElementById('activeCount');
+        this.camerasList = document.getElementById('camerasList');
+        this.eventsTable = document.getElementById('eventsTable');
+        
+        this.modal = document.getElementById('photoModal');
+        this.modalImage = document.getElementById('modalImage');
+        this.modalTitle = document.getElementById('modalTitle');
+        this.modalCameraName = document.getElementById('modalCameraName');
+        this.modalTimestamp = document.getElementById('modalTimestamp');
+        this.modalType = document.getElementById('modalType');
+        
+        this.historyModal = document.getElementById('historyModal');
+        this.historyTable = document.getElementById('historyTable');
+        
+        this.showHistoryBtn = document.getElementById('showHistoryBtn');
+        this.clearHistoryBtn = document.getElementById('clearHistory');
+        this.filterAll = document.getElementById('filterAll');
+        this.filterFires = document.getElementById('filterFires');
+        this.filterConnections = document.getElementById('filterConnections');
+        
+        this.updateHistoryStats();
+    }
+
     loadHistoryFromStorage() {
         try {
             const savedHistory = localStorage.getItem('fireMonitoringHistory');
@@ -36,7 +133,6 @@ class ServerMonitor {
         }
     }
 
-    // Сохранение истории в LocalStorage
     saveHistoryToStorage() {
         try {
             localStorage.setItem('fireMonitoringHistory', JSON.stringify(this.eventsHistory));
@@ -46,37 +142,7 @@ class ServerMonitor {
         }
     }
 
-    initializeElements() {
-        this.connectionStatus = document.getElementById('connectionStatus');
-        this.clientCount = document.getElementById('clientCount');
-        this.activeCount = document.getElementById('activeCount');
-        this.camerasList = document.getElementById('camerasList');
-        this.eventsTable = document.getElementById('eventsTable');
-        
-        // Элементы модальных окон
-        this.modal = document.getElementById('photoModal');
-        this.modalImage = document.getElementById('modalImage');
-        this.modalTitle = document.getElementById('modalTitle');
-        this.modalCameraName = document.getElementById('modalCameraName');
-        this.modalTimestamp = document.getElementById('modalTimestamp');
-        this.modalType = document.getElementById('modalType');
-        
-        this.historyModal = document.getElementById('historyModal');
-        this.historyTable = document.getElementById('historyTable');
-        
-        // Кнопки
-        this.showHistoryBtn = document.getElementById('showHistoryBtn');
-        this.clearHistoryBtn = document.getElementById('clearHistory');
-        this.filterAll = document.getElementById('filterAll');
-        this.filterFires = document.getElementById('filterFires');
-        this.filterConnections = document.getElementById('filterConnections');
-        
-        // Показываем статистику истории при загрузке
-        this.updateHistoryStats();
-    }
-
     setupModals() {
-        // Основное модальное окно для фото
         const closeBtns = document.querySelectorAll('.close');
         closeBtns.forEach(btn => {
             btn.onclick = () => {
@@ -104,23 +170,19 @@ class ServerMonitor {
             }
         });
 
-        // Кнопка показа истории
         this.showHistoryBtn.onclick = () => {
             this.showHistoryModal();
         };
 
-        // Кнопка очистки истории
         this.clearHistoryBtn.onclick = () => {
             this.clearHistory();
         };
 
-        // Фильтры истории
         this.filterAll.onclick = () => this.setHistoryFilter('all');
         this.filterFires.onclick = () => this.setHistoryFilter('fires');
         this.filterConnections.onclick = () => this.setHistoryFilter('connections');
     }
 
-    // Обновление статистики истории
     updateHistoryStats() {
         const totalEvents = this.eventsHistory.length;
         const fireEvents = this.eventsHistory.filter(e => e.type === 'fire').length;
@@ -133,27 +195,19 @@ class ServerMonitor {
         console.log(`📊 Статистика истории: Всего ${totalEvents}, Пожаров: ${fireEvents}, Сегодня: ${todayEvents}`);
     }
 
-    // Добавление события в историю
     addEventToHistory(event) {
-        event.id = Date.now() + Math.random(); // Уникальный ID
-        this.eventsHistory.unshift(event); // Добавляем в начало
+        event.id = Date.now() + Math.random();
+        this.eventsHistory.unshift(event);
         
-        // Ограничиваем размер истории
         if (this.eventsHistory.length > this.maxHistorySize) {
             this.eventsHistory = this.eventsHistory.slice(0, this.maxHistorySize);
         }
         
-        // Сохраняем в хранилище
         this.saveHistoryToStorage();
-        
-        // Обновляем статистику
         this.updateHistoryStats();
-        
-        // Обновляем сводку (последние 10 событий)
         this.updateEventsSummary();
     }
 
-    // Обновление сводки событий (последние 10)
     updateEventsSummary() {
         const recentEvents = this.eventsHistory.slice(0, 10);
         
@@ -172,21 +226,20 @@ class ServerMonitor {
                 <td><strong>${event.cameraName || 'Система'}</strong></td>
                 <td><span class="event-type ${eventTypeClass}">${eventTypeText}</span></td>
                 <td>${event.details || ''}</td>
-                <td>
-                    ${event.photoData ? 
-                        `<img src="data:image/jpeg;base64,${event.photoData}" 
-                              class="event-photo"
-                              onclick="monitor.showEventPhoto('${event.id}')"
-                              alt="Фото события"
-                              title="Нажмите для просмотра">` 
-                        : '<span style="color: #95a5a6;">—</span>'
-                    }
-                </td>
+                <td style="white-space: nowrap;">
+    ${event.photoData ? 
+        `<img src="data:image/jpeg;base64,${event.photoData}" 
+              class="event-photo"
+              onclick="event.stopPropagation(); monitor.showEventPhoto('${event.id}')"
+              alt="Фото события">` 
+        : '<span style="color: #95a5a6;">—</span>'
+    }
+    <button class="delete-event-btn" onclick="event.stopPropagation(); monitor.deleteEvent(${event.id})" title="Удалить">🗑️</button>
+</td>
             </tr>
         `}).join('');
     }
 
-    // Получение класса для типа события
     getEventTypeClass(type) {
         const types = {
             'fire': 'event-fire',
@@ -198,7 +251,6 @@ class ServerMonitor {
         return types[type] || 'event-message';
     }
 
-    // Получение текста для типа события
     getEventTypeText(type) {
         const texts = {
             'fire': '🔥 ПОЖАР',
@@ -210,7 +262,6 @@ class ServerMonitor {
         return texts[type] || type;
     }
 
-    // Показать модальное окно истории
     showHistoryModal() {
         this.updateHistoryTable();
         this.historyModal.style.display = 'block';
@@ -222,7 +273,6 @@ class ServerMonitor {
         document.body.style.overflow = 'auto';
     }
 
-    // Обновление таблицы истории
     updateHistoryTable(filter = 'all') {
         let filteredEvents = this.eventsHistory;
         
@@ -249,22 +299,21 @@ class ServerMonitor {
                 <td><strong>${event.cameraName || 'Система'}</strong></td>
                 <td><span class="event-type ${eventTypeClass}">${eventTypeText}</span></td>
                 <td>${event.details || ''}</td>
-                <td>
-                    ${event.photoData ? 
-                        `<img src="data:image/jpeg;base64,${event.photoData}" 
-                              class="history-photo"
-                              onclick="monitor.showEventPhoto('${event.id}')"
-                              alt="Фото события">` 
-                        : '-'
-                    }
-                </td>
+                <td style="white-space: nowrap;">
+    ${event.photoData ? 
+        `<img src="data:image/jpeg;base64,${event.photoData}" 
+              class="history-photo"
+              onclick="event.stopPropagation(); monitor.showEventPhoto('${event.id}')"
+              alt="Фото события">` 
+        : '-'
+    }
+    <button class="delete-event-btn" onclick="event.stopPropagation(); monitor.deleteEvent(${event.id})" title="Удалить">🗑️</button>
+</td>
             </tr>
         `}).join('');
     }
 
-    // Установка фильтра истории
     setHistoryFilter(filter) {
-        // Обновляем активные кнопки
         document.querySelectorAll('.filter-btn').forEach(btn => {
             btn.classList.remove('active');
         });
@@ -276,7 +325,6 @@ class ServerMonitor {
         this.updateHistoryTable(filter);
     }
 
-    // Показать фото события
     showEventPhoto(eventId) {
         const event = this.eventsHistory.find(e => e.id === eventId);
         if (event && event.photoData) {
@@ -289,7 +337,6 @@ class ServerMonitor {
         }
     }
 
-    // Очистка истории
     clearHistory() {
         if (confirm('Вы уверены, что хотите очистить всю историю событий? Это действие нельзя отменить.')) {
             this.eventsHistory = [];
@@ -300,6 +347,46 @@ class ServerMonitor {
             console.log('🗑️ История полностью очищена');
         }
     }
+
+    async deleteEvent(eventId) {
+    // Проверяем, настоящий ли это ID из БД (целое число)
+    const numericId = parseInt(eventId);
+    if (isNaN(numericId) || numericId > 999999) {
+        // Это старый ID из localStorage - удаляем только из памяти
+        const index = this.eventsHistory.findIndex(e => e.id == eventId);
+        if (index !== -1) {
+            this.eventsHistory.splice(index, 1);
+            this.saveHistoryToStorage();
+            this.updateEventsSummary();
+        }
+        return;
+    }
+    
+    if (!confirm('Удалить событие?')) return;
+    
+    try {
+        const response = await fetch(`/api/events/${numericId}`, {
+            method: 'DELETE',
+            headers: { 'x-auth-token': this.authToken }
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            // Удаляем из локального списка
+            const index = this.eventsHistory.findIndex(e => Number(e.id) === numericId);
+            if (index !== -1) {
+                this.eventsHistory.splice(index, 1);
+                this.saveHistoryToStorage();
+                this.updateEventsSummary();
+            }
+            alert('Событие удалено');
+        } else {
+            alert('Ошибка: ' + data.error);
+        }
+    } catch (error) {
+        alert('Ошибка соединения');
+    }
+}
 
     initializeMap() {
         ymaps.ready(() => {
@@ -347,19 +434,16 @@ class ServerMonitor {
         this.cameras.forEach(camera => {
             const hasRecentFire = this.eventsHistory.some(event => 
                 event.cameraName === camera.name && event.type === 'fire' &&
-                Date.now() - new Date(event.timestamp).getTime() < 300000 // 5 минут
+                Date.now() - new Date(event.timestamp).getTime() < 300000
             );
             
-            // Создаем кастомную иконку в зависимости от статуса
             let iconLayout;
             if (hasRecentFire) {
-                // Для камер с пожарами - fire.svg с анимацией
                 iconLayout = ymaps.templateLayoutFactory.createClass(
                     `<div class="fire-marker ${this.activeAnimations.has(camera.id) ? 'animated' : ''}" 
                           style="width: 50px; height: 50px; background-image: url('fire.svg');"></div>`
                 );
             } else {
-                // Для обычных камер - стандартные иконки
                 iconLayout = 'default#imageWithContent';
             }
 
@@ -424,6 +508,105 @@ class ServerMonitor {
         console.log(`🗺️ Добавлено меток на карту: ${this.map.geoObjects.getLength()}`);
     }
 
+    async loadCameraDetails() {
+        try {
+            // Загружаем модели камер
+            const modelsResponse = await fetch('/api/camera-models');
+            const modelsData = await modelsResponse.json();
+            if (modelsData.success) {
+                console.log('📷 Модели камер:', modelsData.models);
+            }
+            
+            // Загружаем типы камер
+            const typesResponse = await fetch('/api/camera-types');
+            const typesData = await typesResponse.json();
+            if (typesData.success) {
+                console.log('🔍 Типы камер:', typesData.types);
+            }
+            
+            // Загружаем адреса
+            const addressesResponse = await fetch('/api/addresses');
+            const addressesData = await addressesResponse.json();
+            if (addressesData.success) {
+                console.log('📍 Адреса:', addressesData.addresses);
+            }
+            
+            // Загружаем департаменты
+            const departmentsResponse = await fetch('/api/departments');
+            const departmentsData = await departmentsResponse.json();
+            if (departmentsData.success) {
+                console.log('🏢 Департаменты:', departmentsData.departments);
+            }
+            
+            // Загружаем статистику
+            const statsResponse = await fetch('/api/camera-stats');
+            const statsData = await statsResponse.json();
+            if (statsData.success) {
+                console.log('📊 Статистика камер:', statsData.stats);
+            }
+            
+            // Отображаем все данные на странице
+            this.displaySystemInfo(
+                modelsData.models || [],
+                typesData.types || [],
+                addressesData.addresses || [],
+                departmentsData.departments || [],
+                statsData.stats || {}
+            );
+            
+        } catch (error) {
+            console.error('❌ Ошибка загрузки данных:', error);
+            const container = document.getElementById('systemInfoContainer');
+            if (container) {
+                container.innerHTML = '<div class="info-card">⚠️ Ошибка загрузки системной информации</div>';
+            }
+        }
+    }
+
+    displaySystemInfo(models, types, addresses, departments, stats) {
+        const container = document.getElementById('systemInfoContainer');
+        if (!container) return;
+        
+        container.innerHTML = `
+            <div class="info-card">
+                <h4>📷 Модели камер <span class="stats-badge">${models.length}</span></h4>
+                <ul>
+                    ${models.map(m => `<li><strong>${m.name}</strong> — ${m.manufacturer || '—'}</li>`).join('') || '<li>Нет данных</li>'}
+                </ul>
+            </div>
+            <div class="info-card">
+                <h4>🔍 Типы камер <span class="stats-badge">${types.length}</span></h4>
+                <ul>
+                    ${types.map(t => `<li><strong>${t.name}</strong> (дальность ${t.range || '?'} м)</li>`).join('') || '<li>Нет данных</li>'}
+                </ul>
+            </div>
+            <div class="info-card">
+                <h4>📍 Адреса установки <span class="stats-badge">${addresses.length}</span></h4>
+                <ul>
+                    ${addresses.map(a => `<li>${a.region}, ${a.city} (${a.coordinates || 'координаты не указаны'})</li>`).join('') || '<li>Нет данных</li>'}
+                </ul>
+            </div>
+            <div class="info-card">
+                <h4>🏢 Департаменты <span class="stats-badge">${departments.length}</span></h4>
+                <ul>
+                    ${departments.map(d => `<li><strong>${d.name}</strong> — ${d.phone || 'тел. не указан'}</li>`).join('') || '<li>Нет данных</li>'}
+                </ul>
+            </div>
+            <div class="info-card">
+                <h4>📊 Статистика по моделям</h4>
+                <ul>
+                    ${stats.byModel?.map(s => `<li>${s.model_name}: ${s.camera_count} камер (онлайн: ${s.online_count})</li>`).join('') || '<li>Нет данных</li>'}
+                </ul>
+            </div>
+            <div class="info-card">
+                <h4>📊 Статистика по типам</h4>
+                <ul>
+                    ${stats.byType?.map(t => `<li>${t.type_name}: ${t.camera_count} камер, ср. дальность ${Math.round(t.avg_range)} м</li>`).join('') || '<li>Нет данных</li>'}
+                </ul>
+            </div>
+        `;
+    }
+
     animateCameraMarker(cameraId) {
         const marker = this.mapObjects[cameraId];
         const camera = this.cameras.get(cameraId);
@@ -437,7 +620,6 @@ class ServerMonitor {
 
         console.log(`🔥 Анимируем метку камеры: ${camera.name}`);
 
-        // Создаем анимированную fire иконку
         const fireIconLayout = ymaps.templateLayoutFactory.createClass(
             `<div class="fire-marker animated" 
                   style="width: 50px; height: 50px; background-image: url('fire.svg');"></div>`
@@ -454,7 +636,6 @@ class ServerMonitor {
 
         this.animateCameraCard(cameraId);
 
-        // Устанавливаем таймаут для автоматического скрытия fire-метки через 10 секунд
         const fireTimeout = setTimeout(() => {
             console.log(`⏰ Скрываем fire-метку для камеры: ${camera.name}`);
             this.removeFireMarker(cameraId);
@@ -464,20 +645,17 @@ class ServerMonitor {
         this.activeAnimations.add(cameraId);
     }
 
-    // Новая функция для удаления fire-метки (но фото остается в таблице)
     removeFireMarker(cameraId) {
         const marker = this.mapObjects[cameraId];
         const camera = this.cameras.get(cameraId);
         
         if (!marker || !camera) return;
 
-        // Очищаем таймаут
         if (this.fireTimeouts.has(cameraId)) {
             clearTimeout(this.fireTimeouts.get(cameraId));
             this.fireTimeouts.delete(cameraId);
         }
 
-        // Возвращаем стандартную иконку
         marker.options.set({
             preset: camera.status === 'online' ? 'islands#greenIcon' : 'islands#grayIcon',
             iconColor: camera.status === 'online' ? '#27ae60' : '#95a5a6',
@@ -486,8 +664,6 @@ class ServerMonitor {
 
         this.stopCameraCardAnimation(cameraId);
         this.activeAnimations.delete(cameraId);
-
-        // Обновляем отображение камер (убираем fire-индикаторы)
         this.updateCamerasDisplay();
     }
 
@@ -497,13 +673,11 @@ class ServerMonitor {
         
         if (!marker) return;
 
-        // Очищаем таймаут если он есть
         if (this.fireTimeouts.has(cameraId)) {
             clearTimeout(this.fireTimeouts.get(cameraId));
             this.fireTimeouts.delete(cameraId);
         }
 
-        // Возвращаем стандартную иконку
         marker.options.set({
             preset: camera.status === 'online' ? 'islands#greenIcon' : 'islands#grayIcon',
             iconColor: camera.status === 'online' ? '#27ae60' : '#95a5a6',
@@ -520,7 +694,6 @@ class ServerMonitor {
             card.classList.add('fire-detected');
             card.style.borderLeft = '4px solid #e74c3c';
             card.style.background = 'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)';
-            
             card.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
     }
@@ -571,7 +744,9 @@ class ServerMonitor {
 
     connect() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}`;
+        const wsUrl = this.authToken 
+            ? `${protocol}//${window.location.host}?token=${this.authToken}`
+            : `${protocol}//${window.location.host}`;
         
         console.log('🔗 Подключаемся к серверу мониторинга...');
         
@@ -680,7 +855,6 @@ class ServerMonitor {
         this.updateMapMarkers();
         this.stopCameraAnimation(message.camera.id);
 
-        // Добавляем в историю
         this.addEventToHistory({
             type: 'connection',
             cameraName: message.camera.name,
@@ -699,7 +873,6 @@ class ServerMonitor {
             this.updateMapMarkers();
             this.stopCameraAnimation(message.cameraId);
 
-            // Добавляем в историю
             this.addEventToHistory({
                 type: 'disconnection',
                 cameraName: camera.name,
@@ -712,7 +885,6 @@ class ServerMonitor {
     handleCameraMessage(message) {
         console.log(`💬 Сообщение от камеры: ${message.text}`);
         
-        // Добавляем в историю
         this.addEventToHistory({
             type: 'message',
             cameraName: message.cameraId,
@@ -722,7 +894,6 @@ class ServerMonitor {
     }
 
     handlePhotoRequested(message) {
-        // Добавляем запрос фото в историю
         this.addEventToHistory({
             type: 'photo_request',
             cameraName: message.cameraName,
@@ -743,7 +914,6 @@ class ServerMonitor {
         console.log(`📸 Получено фото от камеры: ${message.cameraName}, пожар: ${message.isFire}`);
         
         if (message.isFire) {
-            // Событие пожара
             this.addEventToHistory({
                 type: 'fire',
                 cameraName: message.cameraName,
@@ -754,7 +924,6 @@ class ServerMonitor {
             
             this.animateCameraMarker(message.cameraId);
         } else {
-            // Обычное фото по запросу
             this.addEventToHistory({
                 type: 'photo_request',
                 cameraName: message.cameraName,
@@ -772,7 +941,6 @@ class ServerMonitor {
         }
     }
 
-    // Функция для анимации карточки при запросе (без fire)
     animateRequestCard(cameraId) {
         const card = document.querySelector(`[data-camera-id="${cameraId}"]`);
         if (card) {
@@ -782,7 +950,6 @@ class ServerMonitor {
         }
     }
 
-    // Функция для остановки анимации карточки при запросе
     stopRequestCardAnimation(cameraId) {
         const card = document.querySelector(`[data-camera-id="${cameraId}"]`);
         if (card) {
@@ -805,7 +972,7 @@ class ServerMonitor {
         this.camerasList.innerHTML = camerasArray.map(camera => {
             const hasRecentFire = this.eventsHistory.some(event => 
                 event.cameraName === camera.name && event.type === 'fire' &&
-                Date.now() - new Date(event.timestamp).getTime() < 300000 // 5 минут
+                Date.now() - new Date(event.timestamp).getTime() < 300000
             );
             const isAnimating = this.activeAnimations.has(camera.id);
             const borderColor = isAnimating ? '#e74c3c' : 
@@ -900,3 +1067,69 @@ class ServerMonitor {
 }
 
 const monitor = new ServerMonitor();
+
+const style = document.createElement('style');
+style.textContent = `
+    .auth-block {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+    }
+    
+    .user-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: rgba(255,255,255,0.1);
+        padding: 5px 10px;
+        border-radius: 30px;
+    }
+    
+    .user-greeting {
+        color: white;
+        font-weight: 500;
+    }
+    
+    .user-position {
+        background: rgba(255,255,255,0.2);
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        color: white;
+    }
+    
+    .login-btn-small {
+        background: rgba(255,255,255,0.2);
+        color: white;
+        text-decoration: none;
+        padding: 8px 16px;
+        border-radius: 30px;
+        font-size: 14px;
+        transition: background 0.3s;
+        border: 1px solid rgba(255,255,255,0.3);
+    }
+    
+    .login-btn-small:hover {
+        background: rgba(255,255,255,0.3);
+    }
+    
+    .logout-btn-small {
+        background: rgba(255,255,255,0.2);
+        border: none;
+        color: white;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.3s;
+    }
+    
+    .logout-btn-small:hover {
+        background: rgba(255,255,255,0.3);
+    }
+`;
+document.head.appendChild(style);

@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход в систему мониторинга</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .login-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 400px;
+            padding: 40px;
+            animation: slideUp 0.5s ease;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .login-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .fire-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            animation: flicker 2s infinite;
+        }
+        
+        @keyframes flicker {
+            0% { opacity: 1; }
+            50% { opacity: 0.8; transform: scale(1.05); }
+            100% { opacity: 1; }
+        }
+        
+        .login-header h1 {
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        
+        .login-header p {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .login-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .login-btn:active {
+            transform: translateY(0);
+        }
+        
+        .login-btn.loading {
+            pointer-events: none;
+            opacity: 0.7;
+        }
+        
+        .login-btn.loading::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            top: 50%;
+            left: 50%;
+            margin-left: -10px;
+            margin-top: -10px;
+            border: 2px solid white;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .error-message {
+            background: #ffebee;
+            color: #c62828;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+            border-left: 4px solid #c62828;
+        }
+        
+        .error-message.show {
+            display: block;
+            animation: shake 0.5s ease;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        
+        .test-credentials {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            font-size: 13px;
+            border: 1px dashed #ccc;
+        }
+        
+        .test-credentials p {
+            color: #444;
+            margin-bottom: 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .test-credentials p::before {
+            content: '🔐';
+            font-size: 16px;
+        }
+        
+        .credential-item {
+            background: white;
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border-left: 3px solid #667eea;
+            font-family: monospace;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .credential-login {
+            color: #667eea;
+            font-weight: 600;
+        }
+        
+        .credential-password {
+            color: #764ba2;
+            background: #f0f0f0;
+            padding: 3px 8px;
+            border-radius: 4px;
+        }
+        
+        .credential-role {
+            font-size: 11px;
+            color: #999;
+            margin-left: 5px;
+        }
+        
+        .footer-note {
+            margin-top: 20px;
+            text-align: center;
+            color: #999;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <div class="fire-icon">🔥</div>
+            <h1>Система мониторинга пожаров</h1>
+            <p>Войдите для доступа к панели управления</p>
+        </div>
+        
+        <div class="error-message" id="errorMessage"></div>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label>Логин</label>
+                <input type="text" id="login" placeholder="Введите логин" value="admin" autocomplete="off" autofocus>
+            </div>
+            
+            <div class="form-group">
+                <label>Пароль</label>
+                <input type="password" id="password" placeholder="Введите пароль" value="admin123">
+            </div>
+            
+            <button type="submit" class="login-btn" id="loginBtn">Войти в систему</button>
+        </form>
+        
+        <div class="test-credentials">
+            <p>Тестовые учетные записи</p>
+            
+            <div class="credential-item">
+                <span><span class="credential-login">admin</span> <span class="credential-role">(Администратор)</span></span>
+                <span class="credential-password">admin123</span>
+            </div>
+            
+            <div class="credential-item">
+                <span><span class="credential-login">operator</span> <span class="credential-role">(Оператор)</span></span>
+                <span class="credential-password">op123</span>
+            </div>
+            
+            <div class="credential-item">
+                <span><span class="credential-login">anna</span> <span class="credential-role">(Ст. оператор)</span></span>
+                <span class="credential-password">anna123</span>
+            </div>
+        </div>
+        
+        <div class="footer-note">
+            ⚠️ В демо-режиме пароли хранятся в открытом виде
+        </div>
+    </div>
+    
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const login = document.getElementById('login').value.trim();
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('errorMessage');
+            const loginBtn = document.getElementById('loginBtn');
+            
+            // Валидация
+            if (!login || !password) {
+                errorDiv.textContent = 'Введите логин и пароль';
+                errorDiv.classList.add('show');
+                return;
+            }
+            
+            // Показываем загрузку
+            loginBtn.classList.add('loading');
+            loginBtn.textContent = '';
+            errorDiv.classList.remove('show');
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ login, password })
+                });
+                
+                const data = await response.json();
+                
+                // Убираем загрузку
+                loginBtn.classList.remove('loading');
+                loginBtn.textContent = 'Войти в систему';
+                
+                if (data.success) {
+                    // Сохраняем токен и данные пользователя
+                    localStorage.setItem('authToken', data.token);
+                    localStorage.setItem('currentUser', JSON.stringify(data.user));
+                    
+                    console.log('✅ Вход выполнен успешно');
+                    
+                    // Перенаправляем на главную
+                    window.location.href = '/';
+                } else {
+                    errorDiv.textContent = data.error || 'Неверный логин или пароль';
+                    errorDiv.classList.add('show');
+                    
+                    // Очищаем поле пароля
+                    document.getElementById('password').value = '';
+                    document.getElementById('password').focus();
+                }
+            } catch (error) {
+                console.error('Ошибка:', error);
+                
+                loginBtn.classList.remove('loading');
+                loginBtn.textContent = 'Войти в систему';
+                
+                errorDiv.textContent = 'Ошибка соединения с сервером';
+                errorDiv.classList.add('show');
+            }
+        });
+        
+        // Если уже авторизованы - сразу на главную
+        if (localStorage.getItem('authToken')) {
+            console.log('🔄 Обнаружена существующая сессия, перенаправляем...');
+            window.location.href = '/';
+        }
+        
+        // Добавляем эффект для полей ввода
+        const inputs = document.querySelectorAll('input');
+        inputs.forEach(input => {
+            input.addEventListener('focus', function() {
+                this.parentElement.style.transform = 'scale(1.02)';
+            });
+            
+            input.addEventListener('blur', function() {
+                this.parentElement.style.transform = 'scale(1)';
+            });
+        });
+    </script>
+</body>
+</html>
