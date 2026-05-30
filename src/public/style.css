@@ -17,7 +17,6 @@ body {
     padding: 20px;
 }
 
-/* Header */
 .header {
     background: rgba(255, 255, 255, 0.95);
     padding: 20px;
@@ -63,7 +62,6 @@ body {
     font-weight: bold;
 }
 
-/* Map Section */
 .map-section {
     background: rgba(255, 255, 255, 0.95);
     padding: 20px;
@@ -85,15 +83,13 @@ body {
     border: 3px solid #3498db;
 }
 
-/* Main Content Layout */
 .main-content {
     display: grid;
-    grid-template-columns: 2fr 1fr; /* Камеры 2/3, лог 1/3 */
+    grid-template-columns: 2fr 1fr;
     gap: 20px;
     align-items: start;
 }
 
-/* Cameras Section - Left (Wider) */
 .cameras-section {
     background: rgba(255, 255, 255, 0.95);
     padding: 20px;
@@ -113,7 +109,6 @@ body {
     gap: 15px;
 }
 
-/* Photos Section - Right (Narrower) */
 .photos-section {
     background: rgba(255, 255, 255, 0.95);
     padding: 20px;
@@ -133,7 +128,6 @@ body {
     overflow-x: auto;
 }
 
-/* Camera Cards */
 .client-card {
     background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
     border-radius: 12px;
@@ -228,7 +222,6 @@ body {
     transform: none;
 }
 
-/* Photos Table */
 .photos-table {
     width: 100%;
     border-collapse: collapse;
@@ -316,7 +309,6 @@ body {
     grid-column: 1 / -1;
 }
 
-/* Modal */
 .modal {
     display: none;
     position: fixed;
@@ -390,7 +382,6 @@ body {
     margin-bottom: 8px;
 }
 
-/* Animations */
 @keyframes pulse {
     0% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.4); }
     70% { box-shadow: 0 0 0 10px rgba(231, 76, 60, 0); }
@@ -413,7 +404,6 @@ body {
     to { transform: translateY(0); opacity: 1; }
 }
 
-/* Fire Marker Animation */
 .fire-marker {
     background-size: contain;
     background-repeat: no-repeat;
@@ -430,7 +420,6 @@ body {
     100% { transform: scale(1); }
 }
 
-/* Responsive Design */
 @media (max-width: 1024px) {
     .main-content {
         grid-template-columns: 1fr;
@@ -465,7 +454,6 @@ body {
     }
 }
 
-/* Events Section */
 .events-section {
     background: rgba(255, 255, 255, 0.95);
     padding: 20px;
@@ -535,7 +523,6 @@ body {
     background: #f8f9fa;
 }
 
-/* Event Types */
 .event-type {
     padding: 4px 8px;
     border-radius: 12px;
@@ -569,7 +556,6 @@ body {
     color: #9b59b6;
 }
 
-/* Action Buttons */
 .action-btn {
     background: #3498db;
     color: white;
@@ -586,7 +572,6 @@ body {
     transform: translateY(-1px);
 }
 
-/* History Modal */
 .large-modal {
     width: 95%;
     max-width: 1200px;
@@ -675,7 +660,6 @@ body {
     border-color: #3498db;
 }
 
-/* Responsive */
 @media (max-width: 768px) {
     .events-header {
         flex-direction: column;
@@ -692,7 +676,6 @@ body {
     }
 }
 
-/* Добавим в CSS */
 .event-photo {
     width: 60px;
     height: 40px;
@@ -716,9 +699,6 @@ body {
     vertical-align: middle;
 }
 
-/* Добавляем в конец файла style.css */
-
-/* Стили для информации о пользователе */
 .user-info-header {
     display: flex;
     align-items: center;
@@ -789,7 +769,6 @@ body {
     transform: rotate(90deg);
 }
 
-/* Адаптация header */
 .header {
     display: flex;
     align-items: center;
@@ -810,7 +789,6 @@ body {
     gap: 10px;
 }
 
-/* Для мобильных устройств */
 @media (max-width: 768px) {
     .header {
         flex-direction: column;
@@ -827,7 +805,6 @@ body {
     }
 }
 
-/* Анимация для кнопки выхода */
 @keyframes spinOut {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
@@ -837,7 +814,6 @@ body {
     animation: spinOut 0.5s ease;
 }
 
-/* Индикатор загрузки на странице логина */
 .loading-spinner {
     display: inline-block;
     width: 20px;

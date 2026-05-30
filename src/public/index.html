@@ -7,7 +7,6 @@
     <link rel="stylesheet" href="style.css">
     <script src="https://api-maps.yandex.ru/2.1/?apikey=0000&lang=ru_RU" type="text/javascript"></script>
     <style>
-        /* Дополнительные стили для блока системной информации */
         .system-info-section {
             background: white;
             border-radius: 12px;
@@ -77,7 +76,6 @@
             <div id="map" class="map-container"></div>
         </section>
 
-        <!-- НОВЫЙ БЛОК: системная информация -->
         <section class="system-info-section">
             <h3>📊 Системная информация</h3>
             <div id="systemInfoContainer" class="system-info-grid">
@@ -112,7 +110,6 @@
         </main>
     </div>
 
-    <!-- Модальное окно для фото -->
     <div id="photoModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -130,7 +127,6 @@
         </div>
     </div>
 
-    <!-- Модальное окно для истории -->
     <div id="historyModal" class="modal">
         <div class="modal-content large-modal">
             <div class="modal-header">
@@ -156,6 +152,6 @@
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <script type="module" src="js/app.js"></script>
 </body>
 </html>
